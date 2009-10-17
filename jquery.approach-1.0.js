@@ -8,35 +8,36 @@
  * Dual licensed under the MIT and GPL licenses.
  */
  
-(function($) {
+(function($, sqrt, pow) {
   
   $.fn.approach = function(styles, distance, callback) {
     var settings = {
-          "interval" : 50,    // Used to throttle action on mousemove events
-          "distance" : 400},  // Minimum distance in pixels within which we start to animate
+          interval: 50,    // Used to throttle action on mousemove events
+          distance: 400},  // Minimum distance in pixels within which we start to animate
         lastRun,              // When the proxanimation was last run
         elements = [];        // Holds the elements that we'll perform animations on
     
     // Extend the settings with those the user has provided
-    if(distance) $.extend(settings, {"distance": distance});
+    if(distance) $.extend(settings, {distance: distance});
     
     // Add the elements to our array
     this.each(function(i, obj) {
       // Save the style data we'll need for proxanimations
       var proxStyles = [],
-          colorStyles = ['backgroundColor', 'borderBottomColor', 'borderLeftColor', 'borderRightColor', 'borderTopColor', 'color', 'outlineColor'];
+          colorStyles = ['backgroundColor', 'borderBottomColor', 'borderLeftColor', 'borderRightColor', 'borderTopColor', 'color', 'outlineColor'],
+          $obj = $(obj);
       
       $.each(styles, function(style, val) {
-        var from, to, unit;
+        var from, to;
         
         // If the style is color-based and jQuery Effects Core is installed, let's animate...with color!
         if($.inArray(style, colorStyles) > -1 && $.fx.step[style]) {
           // Rut Roh
-          from = {"number": getRGB($(obj).css(style))};
-          to = {"number": getRGB(val)};
+          from = {number: getRGB($obj.css(style))};
+          to = {number: getRGB(val)};
         } else {
           // Try to parse out units, etc (taken from jQuery animate)
-          from = getParts($(obj).css(style)),
+          from = getParts($obj.css(style));
           to = getParts(val);
         }
 					
@@ -46,16 +47,15 @@
   					to.number = ((to.relative == "-=" ? -1 : 1) * to.number) + from.number;
           
           // Making an assumption that the units are the same for from/to. Bad assumption. TODO: Be more intelligent.
-          unit = to.unit || "";
           proxStyles.push({
-            "name": style,
-            "from": from.number,
-            "to": to.number,
-            "unit": unit
+            name: style,
+            from: from.number,
+            to: to.number,
+            unit: to.unit || ""
           });
         }
       });
-      $(obj).data("jquery-approach", proxStyles);
+      $obj.data("jquery-approach", proxStyles);
       elements.push(obj);
     });
     
@@ -63,7 +63,7 @@
     $(document).bind("mousemove", function(e) {
       
       // Check for throttling
-      var thisRun = new Date().getTime();
+      var thisRun = new Date();
       if(thisRun - lastRun < settings.interval)
         return;
       
@@ -71,13 +71,13 @@
 
       // Loop through the elements, calculate the values (based on distance), then animate
 	    $.each(elements, function() {
-	      var self = this,
-	          center = getCenter(self),
-	          distance = parseInt(Math.sqrt(Math.pow(e.pageX-center.x,2) + Math.pow(e.pageY-center.y,2))),
+	      var center = getCenter(this),
+	          distance = parseInt(sqrt(pow(e.pageX-center.x,2) + pow(e.pageY-center.y,2)), 10),
 	          distanceRatio = (settings.distance - distance) / settings.distance,
-	          calcStyles = {};
+	          calcStyles = {},
+	          $self = $(this);
 	               	          
-	      $.each($(self).data("jquery-approach"), function() {	        
+	      $.each($self.data("jquery-approach"), function() {
 	        var style = this,
 	            calcVal,
 	            color; 
@@ -96,19 +96,19 @@
 	        calcStyles[style.name] = calcVal;
 	      });
 
-	      $(self).animate(calcStyles, settings.interval - 1); 
+	      $self.animate(calcStyles, settings.interval - 1);
 	    });
       
     });
 
       // Get the center of the object
     function getCenter(obj) {
-      var offset = $(obj).offset();
+      var $obj = $(obj), offset = $obj.offset();
       return {
-        x:offset.left+ ($(obj).width() / 2),
-        y:offset.top + ($(obj).height() / 2)
-      }
-    };
+        x: offset.left + $obj.width() / 2,
+        y: offset.top + $obj.height() / 2
+      };
+    }
     
     // Separate the string into parts (based on the parser in jQuery animate)
     function getParts(val) {
@@ -122,11 +122,11 @@
       }
       
       return {
-        "relative": relative, // Is this += or -=
-        "number": number, // The float value
-        "unit": unit  // The units: px or em
-      }
-    };
+        relative: relative, // Is this += or -=
+        number: number, // The float value
+        unit: unit  // The units: px or em
+      };
+    }
     
     // Callback, if necessary
     if(callback) callback();
@@ -146,32 +146,32 @@
   		var result;
 
   		// Check if we're already dealing with an array of colors
-  		if ( color && color.constructor == Array && color.length == 3 )
+  		if ($.isArray(color) && color.length == 3)
   				return color;
 
   		// Look for rgb(num,num,num)
-  		if (result = /rgb\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*\)/.exec(color))
+  		if (result = reRGBInt.exec(color))
   				return [parseInt(result[1],10), parseInt(result[2],10), parseInt(result[3],10)];
 
   		// Look for rgb(num%,num%,num%)
-  		if (result = /rgb\(\s*([0-9]+(?:\.[0-9]+)?)\%\s*,\s*([0-9]+(?:\.[0-9]+)?)\%\s*,\s*([0-9]+(?:\.[0-9]+)?)\%\s*\)/.exec(color))
+  		if (result = reRGBFloat.exec(color))
   				return [parseFloat(result[1])*2.55, parseFloat(result[2])*2.55, parseFloat(result[3])*2.55];
 
   		// Look for #a0b1c2
-  		if (result = /#([a-fA-F0-9]{2})([a-fA-F0-9]{2})([a-fA-F0-9]{2})/.exec(color))
+  		if (result = reHex6.exec(color))
   				return [parseInt(result[1],16), parseInt(result[2],16), parseInt(result[3],16)];
 
   		// Look for #fff
-  		if (result = /#([a-fA-F0-9])([a-fA-F0-9])([a-fA-F0-9])/.exec(color))
+  		if (result = reHex3.exec(color))
   				return [parseInt(result[1]+result[1],16), parseInt(result[2]+result[2],16), parseInt(result[3]+result[3],16)];
 
   		// Look for rgba(0, 0, 0, 0) == transparent in Safari 3
-  		if (result = /rgba\(0, 0, 0, 0\)/.exec(color))
-  				return colors['transparent'];
+  		if (reSaf3.test(color))
+  				return colors.transparent;
 
   		// Otherwise, we're most likely dealing with a named color
   		return colors[$.trim(color).toLowerCase()];
-  };
+  }
   
   // Some named colors to work with
   // From Interface by Stefan Petre
@@ -221,7 +221,13 @@
   	white:[255,255,255],
   	yellow:[255,255,0],
   	transparent: [255,255,255]
-  };
+  },
+  // compile the regular expressions once (reduce, reuse, recycle)
+  reRGBInt = /rgb\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*\)/,
+  reRGBFloat = /rgb\(\s*([0-9]+(?:\.[0-9]+)?)\%\s*,\s*([0-9]+(?:\.[0-9]+)?)\%\s*,\s*([0-9]+(?:\.[0-9]+)?)\%\s*\)/,
+  reHex6 = /#([a-fA-F0-9]{2})([a-fA-F0-9]{2})([a-fA-F0-9]{2})/,
+  reHex3 = /#([a-fA-F0-9])([a-fA-F0-9])([a-fA-F0-9])/,
+  reSaf3 = /rgba\(0, 0, 0, 0\)/;
   /* End jQuery Effects Core */
   
-})(jQuery);
+})(jQuery, Math.sqrt, Math.pow);
